@@ -1,3 +1,6 @@
 [submodule "pet"]
 	path = pet
 	url = https://github.com/Alex-WangHT/LiteMusic-Pet.git
+[submodule "LiteMusicServer-bilibili-stream"]
+	path = LiteMusicServer-bilibili-stream
+	url = https://github.com/Alex-WangHT/LiteMusicServer-bilibili-stream.git

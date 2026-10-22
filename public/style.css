@@ -2,3 +2,14 @@
 select{width:100%;padding:12px;background:#111a22;color:#e7ecf2;border:1px solid #394958;border-radius:8px;font:inherit}[hidden]{display:none!important}
 .actions{flex-wrap:wrap}summary{cursor:pointer}details label{margin-top:16px}#library-message{min-height:25px}
 .desktop-player main{max-width:680px;margin:22px auto}.desktop-player header{display:none}.desktop-player .section-title{margin-top:0}.desktop-player .add-bv{padding:16px}.desktop-player .add-bv summary{font-size:14px;color:#81d9c2}.desktop-player #form{border:0;padding:16px 0 0;background:none}.desktop-player #form .actions{display:none}.desktop-player #form .hint{display:none}.desktop-player #favorites .card{padding:16px}.desktop-player #favorites h3{font-size:16px}.desktop-player #favorites p{font-size:12px;margin:5px 0}.desktop-player #favorites .actions{margin-top:8px}.desktop-player #library-message{margin:12px 0}
+
+.playlist-picker{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;margin:16px 0}
+.playlist-picker label{grid-column:1;grid-row:1;min-width:0;margin:0;display:grid;gap:6px}
+.playlist-picker select,.playlist-picker input{width:100%;min-width:0;height:42px;padding:10px 12px;font:inherit}
+.playlist-picker input{grid-column:1;grid-row:2}
+.playlist-picker button{height:42px;padding:10px 14px}
+#playlist-delete{grid-column:2;grid-row:1}
+#playlist-create{grid-column:2;grid-row:2}
+.desktop-player .playlist-picker{flex:none;margin:4px 20px 14px;font-size:12px;gap:8px 10px}
+.desktop-player .playlist-picker label{font-size:12px}
+.desktop-player .playlist-picker button{font-size:12px}

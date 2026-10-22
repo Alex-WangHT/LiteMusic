@@ -6,6 +6,7 @@ const $ = id => document.getElementById(id);
 const desktop = !!window.whalePlayer;
 let playlist = [], video, loadingTrack = false, playbackMode = 'order';
 let renderRevision = 0, lastPlaylistJSON = '', syncRevision = 0;
+let activePlaylist = '';
 let mutationQueue = Promise.resolve();
 function changeCloud(task) { const job = mutationQueue.then(task); mutationQueue = job.catch(() => {}); return job; }
 const metadataJobs = new Map();
@@ -16,7 +17,7 @@ try {
   sessionStorage.removeItem('liteplayer-local-playlist');
   sessionStorage.removeItem('liteplayer-playlist-cache');
   $('cloud-url').value = localStorage.getItem('liteplayer-cloud-url') || localStorage.getItem('liteplayer-workers-url') || 'https://liteplayer.alexwang010112.workers.dev';
-  $('cloud-key').value = localStorage.getItem('liteplayer-library-key') || '';
+  localStorage.removeItem('liteplayer-library-key');
   const saved = localStorage.getItem('liteplayer-playback-mode');
   if (playbackModes.includes(saved)) playbackMode = saved;
 } catch { message('无法清理旧列表缓存或读取连接设置，请检查应用存储权限。', true); }
@@ -39,6 +40,7 @@ function publishPlayback() {
   window.whalePlayer?.publish({ title: loadingTrack ? '正在加载音频…' : (video?.title || '选择一首歌，我陪你听'), playing, busy: loadingTrack, mode: playbackMode });
 }
 function createRow(item, index) {
+  const origin = activePlaylist;
   const row = document.createElement('article'); row.className = 'queue-row'; row.dataset.track = `${item.bvid}:${item.page}`; row.dataset.number = String(index + 1).padStart(2, '0');
   const number = document.createElement('span'); number.className = 'queue-number'; number.textContent = row.dataset.number;
   const play = document.createElement('button'); play.className = 'queue-play'; play.setAttribute('aria-label', `播放：${item.title}`); play.title = `${item.title} · ${item.bvid} P${item.page}`;
@@ -46,7 +48,7 @@ function createRow(item, index) {
   const info = document.createElement('small'); info.textContent = [item.author, item.bvid, `P${item.page}`].filter(Boolean).join(' · ');
   play.append(title, info); play.onclick = () => loadVideo(`https://www.bilibili.com/video/${item.bvid}/?p=${item.page}`, true);
   const remove = document.createElement('button'); remove.className = 'queue-remove'; remove.textContent = '×'; remove.setAttribute('aria-label', `移出列表：${item.title}`); remove.title = '移出播放列表';
-  remove.onclick = async () => { remove.disabled = true; try { await changeCloud(async () => { await cloud('DELETE', { bvid: item.bvid, page: item.page }); await syncPlaylist(); }); } catch (error) { message(error.message, true); } finally { remove.disabled = false; } };
+  remove.onclick = async () => { remove.disabled = true; try { await changeCloud(async () => { if (origin !== activePlaylist) return; await cloud('DELETE', { bvid: item.bvid, page: item.page }); await syncPlaylist(); }); } catch (error) { message(error.message, true); } finally { remove.disabled = false; } };
   row.append(number, play, remove); return row;
 }
 async function renderPlaylist(items) {
@@ -69,14 +71,15 @@ async function renderPlaylist(items) {
   publishPlayback();
 }
 function enrichTrack(bvid, page) {
-  const id = `${bvid}:${page}`;
+  const origin = activePlaylist;
+  const id = `${origin}:${bvid}:${page}`;
   if (metadataJobs.has(id)) return;
   const job = (async () => {
     try {
       const response = await fetch('/api/video?' + new URLSearchParams({ input: `https://www.bilibili.com/video/${bvid}/?p=${page}` }), { signal: AbortSignal.timeout(15000) });
       if (!response.ok) return;
       const data = await response.json();
-      await changeCloud(async () => { if (playlist.some(item => item.bvid === bvid && item.page === page)) { await cloud('POST', { bvid, page, title: data.title, author: data.author, part_title: data.pages.find(part => part.page === page)?.title }); await syncPlaylist(); } });
+      await changeCloud(async () => { if (origin === activePlaylist && playlist.some(item => item.bvid === bvid && item.page === page)) { await cloud('POST', { bvid, page, title: data.title, author: data.author, part_title: data.pages.find(part => part.page === page)?.title }); await syncPlaylist(); } });
     } catch { /* Metadata failure does not alter the cloud playlist. */ }
   })().finally(() => metadataJobs.delete(id));
   metadataJobs.set(id, job);
@@ -151,10 +154,11 @@ $('audio').addEventListener('playing', () => message('正在播放'));
 $('audio').addEventListener('pause', () => { if (!loadingTrack && $('audio').getAttribute('src')) message('已暂停'); });
 $('audio').addEventListener('error', () => { if ($('audio').getAttribute('src')) message('音频加载失败，请检查本地网络或视频限制。', true); });
 for (const name of ['playing', 'pause', 'ended', 'emptied', 'error', 'loadedmetadata']) $('audio').addEventListener(name, publishPlayback);
-async function cloud(method = 'GET', body) {
-  const response = await fetch('/api/playlist', {
+async function cloud(method = 'GET', body, resource = 'favorites') {
+  const query = new URLSearchParams({ resource, playlist: activePlaylist || 'default' });
+  const response = await fetch('/api/playlist?' + query, {
     method, cache: 'no-store', signal: AbortSignal.timeout(25000),
-    headers: { 'X-Playlist-API': $('cloud-url').value.trim(), Authorization: 'Bearer ' + $('cloud-key').value.trim(), 'Content-Type': 'application/json' },
+    headers: { 'X-Playlist-API': $('cloud-url').value.trim(), 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await response.json();
@@ -162,30 +166,48 @@ async function cloud(method = 'GET', body) {
   return data;
 }
 async function syncPlaylist() {
+  if (!activePlaylist) return;
   const revision = ++syncRevision;
   const data = await cloud();
   if (revision !== syncRevision) return;
   if (!Array.isArray(data.favorites)) throw new Error('云端列表格式无效');
   await renderPlaylist(data.favorites); message('云端列表已同步');
 }
+async function refreshLists(preferred = activePlaylist) {
+  ++syncRevision;
+  const data = await cloud('GET', undefined, 'playlists');
+  if (!Array.isArray(data.playlists)) throw new Error('云端列表格式无效，请更新 Workers');
+  $('playlist-select').replaceChildren(...data.playlists.map(item => {
+    const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; return option;
+  }));
+  activePlaylist = data.playlists.some(item => item.id === preferred) ? preferred : (data.playlists[0]?.id || '');
+  $('playlist-select').value = activePlaylist;
+  await renderPlaylist([]);
+  $('playlist-delete').disabled = !activePlaylist;
+  $('load').disabled = !activePlaylist;
+  if (activePlaylist) await syncPlaylist();
+  else message('请新建一个播放列表。');
+}
+$('playlist-select').onchange = () => changeCloud(() => refreshLists($('playlist-select').value)).catch(error => message(error.message, true));
+$('playlist-create').onclick = () => changeCloud(async () => {
+  const result = await cloud('POST', { name: $('playlist-name').value }, 'playlists');
+  $('playlist-name').value = ''; await refreshLists(result.id);
+}).catch(error => message(error.message, true));
+$('playlist-delete').onclick = () => {
+  if (!activePlaylist || !confirm('删除当前播放列表及其中的全部歌曲？')) return;
+  changeCloud(async () => { await cloud('DELETE', { id: activePlaylist }, 'playlists'); await refreshLists(); }).catch(error => message(error.message, true));
+};
 $('connection-form').onsubmit = async event => {
   event.preventDefault(); await renderPlaylist([]);
   try {
-    await syncPlaylist();
+    await changeCloud(() => refreshLists());
     localStorage.setItem('liteplayer-cloud-url', $('cloud-url').value.trim());
-    localStorage.setItem('liteplayer-library-key', $('cloud-key').value.trim());
     localStorage.removeItem('liteplayer-workers-url');
     $('connection').open = false;
   } catch (error) { message(error.message, true); }
 };
 await renderPlaylist([]);
-if ($('cloud-key').value) {
-  message('正在同步云端列表…');
-  syncPlaylist().catch(error => message(error.message, true));
-} else {
-  $('connection').open = true;
-  message('请连接云端后读取或添加 BV，列表不会保存在本机。');
-}
+refreshLists().catch(error => { message(error.message, true); $('connection').open = true; });
 publishPlayback();
 // Reveal the window only after its compact layout has been painted. Cloud I/O
 // continues independently so a slow connection cannot block opening the list.

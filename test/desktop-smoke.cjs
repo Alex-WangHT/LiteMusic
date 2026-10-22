@@ -19,10 +19,12 @@ const fs = require('node:fs/promises');
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.ok(pet && player);
+    await player.waitForLoadState('load');
     // The playlist service is mocked; Bilibili audio requests remain real.
     let remote = [];
-    await player.route('**/api/playlist', async route => {
+    await player.route('**/api/playlist?*', async route => {
       const request = route.request(), body = request.postDataJSON();
+      if (new URL(request.url()).searchParams.get('resource') === 'playlists') return route.fulfill({ json: { playlists: [{ id: 'default', name: '默认列表' }] } });
       if (request.method() === 'POST') {
         const bvid = body.bvid || body.input, page = body.page || 1;
         const existing = remote.find(item => item.bvid === bvid && item.page === page);
@@ -31,7 +33,7 @@ const fs = require('node:fs/promises');
       if (request.method() === 'DELETE') remote = remote.filter(item => item.bvid !== body.bvid || item.page !== body.page);
       await route.fulfill({ json: request.method() === 'GET' ? { favorites: remote } : { ok: true } });
     });
-    await player.locator('#cloud-key').fill('lp_' + 'a'.repeat(64));
+    await player.locator('#connection').evaluate(element => { element.open = true; });
     await player.locator('#connection-form button').click();
     const errors = [], requests = [];
     for (const page of [pet, player]) page.on('pageerror', error => errors.push(error.message));
