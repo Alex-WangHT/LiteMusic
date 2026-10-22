@@ -1,10 +1,10 @@
-import { HttpError } from './http.mjs';
-import { parseVideo } from './video-input.mjs';
-export { parseVideo } from './video-input.mjs';
+import { HttpError } from '../public/errors.mjs';
+import { parseVideo } from '../public/video-input.mjs';
+export { parseVideo } from '../public/video-input.mjs';
 async function api(path, params, fetcher) {
   let response, result;
   try {
-    // workerd supports only follow/manual; 3xx responses are rejected below.
+    // Reject redirects explicitly without following upstream Location headers.
     response = await fetcher('https://api.bilibili.com' + path + '?' + new URLSearchParams(params), { headers: { Referer: 'https://www.bilibili.com/', 'User-Agent': 'Mozilla/5.0' }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
     if (response.ok) result = await response.json();
   } catch (error) {
@@ -43,13 +43,13 @@ async function audio(request, bvid, page, fetcher) {
   }
   throw new HttpError(502, '音频源暂不可用或不支持该分段请求，请重新获取');
 }
-export function createWorker(fetcher = fetch) {
-  return { async fetch(request, env = {}) {
+export function createPlayer(fetcher = fetch) {
+  return { async fetch(request, { assets } = {}) {
     let response;
     try {
       const url = new URL(request.url);
-      if (url.pathname === '/api/config') response = Response.json({ mode: 'local-player' });
-      else if (!['GET','HEAD'].includes(request.method)) throw new HttpError(405, '仅支持 GET / HEAD');
+      if (!['GET','HEAD'].includes(request.method)) throw new HttpError(405, '仅支持 GET / HEAD');
+      else if (url.pathname === '/api/config') response = Response.json({ mode: 'local-player' });
       else if (url.pathname === '/health') response = Response.json({ ok: true, mode: 'bilibili-stream' });
       else if (url.pathname === '/api/video') {
         const { bvid, page } = parseVideo(url.searchParams.get('input'));
@@ -62,7 +62,7 @@ export function createWorker(fetcher = fetch) {
         if (!Number.isSafeInteger(page) || page < 1) throw new HttpError(400, '分 P 无效');
         response = await audio(request, bvid, page, fetcher);
       } else if (url.pathname.startsWith('/api/')) throw new HttpError(404, '接口不存在');
-      else if (env.ASSETS) response = await env.ASSETS.fetch(request);
+      else if (assets) response = await assets.fetch(request);
       else throw new HttpError(404, '页面不存在');
     } catch (error) { response = Response.json({ error: error.status ? error.message : '服务暂不可用' }, { status: error.status || 502 }); }
     const result = new Response(request.method === 'HEAD' ? null : response.body, response);
@@ -71,4 +71,4 @@ export function createWorker(fetcher = fetch) {
     return result;
   } };
 }
-export default createWorker();
+export default createPlayer();

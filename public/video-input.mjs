@@ -1,4 +1,4 @@
-import { HttpError } from './http.mjs';
+import { HttpError } from './errors.mjs';
 const BV = /^BV[0-9A-Za-z]{10}$/;
 export function parseVideo(input) {
   let bvid = String(input || '').trim(), page = 1;

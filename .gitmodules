@@ -1,0 +1,3 @@
+[submodule "pet"]
+	path = pet
+	url = https://github.com/Alex-WangHT/LiteMusic-Pet.git

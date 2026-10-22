@@ -1,0 +1,10 @@
+const { spawn } = require('node:child_process');
+const path = require('node:path');
+const env = { ...process.env };
+const clientRoot = path.resolve(__dirname, '..');
+const petRoot = path.resolve(process.env.LITEMUSIC_PET_ROOT || path.join(clientRoot, 'pet'));
+env.LITEMUSIC_CLIENT_ROOT = clientRoot;
+delete env.ELECTRON_RUN_AS_NODE;
+const child = spawn(require('electron'), [path.join(petRoot, 'music-shell/main.cjs')], { env, stdio: 'inherit', windowsHide: true });
+child.on('error', error => { console.error(error.message); process.exitCode = 1; });
+child.on('exit', code => { process.exitCode = code || 0; });
