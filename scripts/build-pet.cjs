@@ -29,7 +29,7 @@ const { build, Platform, Arch } = require('electron-builder');
     electronDist: path.join(root, 'node_modules/electron/dist'),
     asar: false, npmRebuild: false,
     files: ['**/*'],
-    win: { icon: path.join(petRoot, 'assets/model/icon.png'), signAndEditExecutable: false },
+    win: { icon: process.env.LITEMUSIC_BUILD_ICON || path.join(petRoot, 'assets/model/icon.png'), signAndEditExecutable: false },
     nsis: {
       artifactName: 'WhaleMusicPet-${version}-Setup-Windows-x64.exe',
       oneClick: false,
