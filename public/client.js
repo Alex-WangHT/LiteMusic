@@ -16,7 +16,7 @@ try {
   localStorage.removeItem('liteplayer-playlist-cache');
   sessionStorage.removeItem('liteplayer-local-playlist');
   sessionStorage.removeItem('liteplayer-playlist-cache');
-  $('cloud-url').value = localStorage.getItem('liteplayer-cloud-url') || localStorage.getItem('liteplayer-workers-url') || 'https://liteplayer.alexwang010112.workers.dev';
+  $('cloud-url').value = localStorage.getItem('liteplayer-cloud-url') || localStorage.getItem('liteplayer-workers-url') || '';
   localStorage.removeItem('liteplayer-library-key');
   const saved = localStorage.getItem('liteplayer-playback-mode');
   if (playbackModes.includes(saved)) playbackMode = saved;
@@ -88,7 +88,7 @@ $('form').addEventListener('submit', async event => {
   event.preventDefault(); $('load').disabled = true;
   try {
     const input = $('video-input').value.trim(), parsed = parseVideo(input);
-    await changeCloud(async () => { await cloud('POST', { input }); await syncPlaylist(); });
+    await changeCloud(async () => { if (!activePlaylist) await refreshLists(); if (!activePlaylist) throw new Error('请先新建播放列表'); await cloud('POST', { input }); await syncPlaylist(); });
     $('video-input').value = '';
     $('add-bv').open = false;
     message('已同步到云端播放列表，标题将在后台更新。');
@@ -127,7 +127,12 @@ async function stepTrack(direction, ended = false) {
   if (next < 0) { message(direction < 0 ? '已经是第一首。' : '已播放到列表末尾。'); publishPlayback(); return; }
   const item = playlist[next]; await loadVideo(`https://www.bilibili.com/video/${item.bvid}/?p=${item.page}`, true);
 }
+function openSettings() { if (!$('settings').open) $('settings').showModal(); }
+$('close-settings').onclick = () => { $('settings').close(); window.whalePlayer?.closePlaylist(); };
+$('settings').addEventListener('close', () => { document.body.classList.remove('settings-only'); });
 async function command(value) {
+  if (value === 'settings') { document.body.classList.add('settings-only'); openSettings(); return; }
+  if (value === 'playlist') { if ($('settings').open) $('settings').close(); document.body.classList.remove('settings-only'); return; }
   if (value === 'mode') {
     playbackMode = playbackModes[(playbackModes.indexOf(playbackMode) + 1) % playbackModes.length];
     try { localStorage.setItem('liteplayer-playback-mode', playbackMode); } catch { message('无法保存播放模式。', true); }
@@ -197,6 +202,10 @@ $('playlist-delete').onclick = () => {
   if (!activePlaylist || !confirm('删除当前播放列表及其中的全部歌曲？')) return;
   changeCloud(async () => { await cloud('DELETE', { id: activePlaylist }, 'playlists'); await refreshLists(); }).catch(error => message(error.message, true));
 };
+$('cloud-url').addEventListener('change', () => {
+  try { localStorage.setItem('liteplayer-cloud-url', $('cloud-url').value.trim()); } catch {}
+  changeCloud(() => refreshLists('')).catch(error => message(error.message, true));
+});
 $('connection-form').onsubmit = async event => {
   event.preventDefault(); await renderPlaylist([]);
   try {
@@ -207,7 +216,12 @@ $('connection-form').onsubmit = async event => {
   } catch (error) { message(error.message, true); }
 };
 await renderPlaylist([]);
-refreshLists().catch(error => { message(error.message, true); $('connection').open = true; });
+$('load').disabled = true;
+if ($('cloud-url').value.trim()) {
+  changeCloud(() => refreshLists()).catch(error => { message(error.message, true); $('connection').open = true; }).finally(() => { $('load').disabled = !activePlaylist; });
+} else {
+  message('请从托盘菜单打开设置，填写你的云端地址。');
+}
 publishPlayback();
 // Reveal the window only after its compact layout has been painted. Cloud I/O
 // continues independently so a slow connection cannot block opening the list.

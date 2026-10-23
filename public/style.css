@@ -13,3 +13,7 @@ select{width:100%;padding:12px;background:#111a22;color:#e7ecf2;border:1px solid
 .desktop-player .playlist-picker{flex:none;margin:4px 20px 14px;font-size:12px;gap:8px 10px}
 .desktop-player .playlist-picker label{font-size:12px}
 .desktop-player .playlist-picker button{font-size:12px}
+
+#settings{width:min(440px,calc(100vw - 32px));max-height:85vh;overflow:auto;background:#19222c;color:#e7ecf2;border:1px solid #394958;border-radius:16px;padding:20px}#settings::backdrop{background:#0009}#settings .card{padding:16px}#settings form{padding:0;border:0}#settings form button{margin-top:12px}.playlist-management{display:flex;flex-wrap:wrap;gap:10px}.playlist-picker label{grid-column:1/-1}
+
+body.settings-only main > :not(#settings){display:none!important}body.settings-only #settings{position:fixed;inset:0;margin:0;width:100%;max-width:none;height:100%;max-height:none;border:0;border-radius:0}body.settings-only #settings::backdrop{background:#19222c}

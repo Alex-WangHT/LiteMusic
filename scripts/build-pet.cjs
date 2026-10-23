@@ -14,7 +14,8 @@ const { build, Platform, Arch } = require('electron-builder');
   };
   // Only runtime files are included: no credentials, local profiles, database or developer tools.
   for (const relative of ['public', 'scripts/dev.mjs', 'scripts/remote-playlist.mjs', 'src/local-player.mjs']) await copy(path.join(root, relative), relative);
-  for (const relative of ['music-shell', 'assets', 'NOTICE.md', 'AUTHORS.md', 'PROVENANCE.md', 'LICENSE', 'LITEMUSIC.md']) await copy(path.join(petRoot, relative), path.join('pet', relative));
+  for (const relative of ['music-shell', 'assets', 'NOTICE.md', 'AUTHORS.md', 'PROVENANCE.md', 'LICENSE']) await copy(path.join(petRoot, relative), path.join('pet', relative));
+  await fs.writeFile(path.join(appDir, 'pet/LITEMUSIC.md'), '# LiteMusic\n\nConfigure your own cloud endpoint in Settings.\nSee NOTICE.md and AUTHORS.md for third-party attribution.\n');
   await fs.writeFile(path.join(appDir, 'package.json'), JSON.stringify({
     name: 'whale-music-pet', productName: 'WhaleMusicPet', version, private: true,
     description: '鲸鱼娘音乐桌宠 · 本地播放', main: 'pet/music-shell/main.cjs', type: 'module',
